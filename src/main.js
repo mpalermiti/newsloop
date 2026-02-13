@@ -161,7 +161,18 @@ async function loadNews() {
           .map(p => `<p class="deep-extract-paragraph">${p}</p>`)
           .join('')
       } else if (deepEl) {
-        deepEl.innerHTML = '<p class="deep-extract-paragraph fallback">Full summary unavailable for this article.</p>'
+        // Build useful fallback from what we have
+        const parts = []
+        if (item.summary) {
+          parts.push(`<p class="deep-extract-paragraph">${item.summary}</p>`)
+        }
+        if (item.relatedSources && item.relatedSources.length > 0) {
+          parts.push(`<p class="deep-extract-paragraph fallback">Also covered by ${item.relatedSources.join(', ')}.</p>`)
+        }
+        if (parts.length === 0) {
+          parts.push(`<p class="deep-extract-paragraph fallback">Could not extract article content. Click "Read full article" below.</p>`)
+        }
+        deepEl.innerHTML = parts.join('')
       }
     })
   })

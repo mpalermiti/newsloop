@@ -1,3 +1,7 @@
+const CORS_PROXIES = [
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+]
 const CORS = 'https://corsproxy.io/?'
 const stopWords = new Set(['the','a','an','is','are','was','were','in','on','at','to','for','of','and','or','with','that','this','from','by','as','its','it','has','have','had','be','been','but','not','will','can','may','new','how','why','what','who','says','said','more','about','into','over','after','some','just','than','also','would','could','should','their','they','them','been','being','other','which','when','where','were','there','these','those'])
 
@@ -46,56 +50,73 @@ function stripHtml(html) {
   return tmp.textContent || tmp.innerText || ''
 }
 
+// Try fetching a URL through multiple CORS proxies
+async function fetchWithProxy(url) {
+  for (const makeProxy of CORS_PROXIES) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 6000)
+      const res = await fetch(makeProxy(url), { signal: controller.signal })
+      clearTimeout(timeout)
+      if (res.ok) {
+        const text = await res.text()
+        if (text.length > 500) return text
+      }
+    } catch { /* try next proxy */ }
+  }
+  return null
+}
+
+// Parse an HTML string into article content
+function extractFromHtml(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+
+  // Get meta description for the short summary
+  const metaDesc = doc.querySelector('meta[property="og:description"]')?.content
+    || doc.querySelector('meta[name="description"]')?.content
+    || doc.querySelector('meta[name="twitter:description"]')?.content
+    || ''
+
+  // Extract meaningful paragraphs from article body
+  const selectors = [
+    'article p', '[class*="article"] p', '[class*="story"] p',
+    '[class*="post"] p', '[class*="content"] p', 'main p',
+    '.entry-content p', '.body p', '#article-body p'
+  ]
+  const skipPattern = /^(by |photo |image |credit |published |updated |share |comment|advertisement|subscribe|sign up|newsletter)/i
+  const paragraphs = Array.from(doc.querySelectorAll(selectors.join(', ')))
+    .map(p => p.textContent.trim())
+    .filter(t => t.length > 60 && !skipPattern.test(t))
+
+  // Deduplicate paragraphs (some selectors overlap)
+  const seen = new Set()
+  const uniqueParagraphs = paragraphs.filter(p => {
+    const key = p.substring(0, 80)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  // Short summary: meta description or first paragraph
+  const shortSummary = (metaDesc && metaDesc.length > 40)
+    ? cleanSummary(metaDesc, 200)
+    : (uniqueParagraphs[0] ? cleanSummary(uniqueParagraphs[0], 200) : null)
+
+  // Deep extract: multiple paragraphs for expanded view
+  const deepParagraphs = uniqueParagraphs.slice(0, 4).map(p => cleanSummary(p, 300))
+
+  return {
+    summary: shortSummary,
+    deepExtract: deepParagraphs.length > 0 ? deepParagraphs : null,
+  }
+}
+
 // Fetch the actual article and extract both a short summary and deeper extract
 async function fetchArticleContent(url) {
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000)
-
-    const res = await fetch(CORS + encodeURIComponent(url), { signal: controller.signal })
-    clearTimeout(timeout)
-    if (!res.ok) return null
-    const html = await res.text()
-    const doc = new DOMParser().parseFromString(html, 'text/html')
-
-    // Get meta description for the short summary
-    const metaDesc = doc.querySelector('meta[property="og:description"]')?.content
-      || doc.querySelector('meta[name="description"]')?.content
-      || doc.querySelector('meta[name="twitter:description"]')?.content
-      || ''
-
-    // Extract meaningful paragraphs from article body
-    const selectors = [
-      'article p', '[class*="article"] p', '[class*="story"] p',
-      '[class*="post"] p', '[class*="content"] p', 'main p',
-      '.entry-content p', '.body p', '#article-body p'
-    ]
-    const skipPattern = /^(by |photo |image |credit |published |updated |share |comment|advertisement|subscribe|sign up|newsletter)/i
-    const paragraphs = Array.from(doc.querySelectorAll(selectors.join(', ')))
-      .map(p => p.textContent.trim())
-      .filter(t => t.length > 60 && !skipPattern.test(t))
-
-    // Deduplicate paragraphs (some selectors overlap)
-    const seen = new Set()
-    const uniqueParagraphs = paragraphs.filter(p => {
-      const key = p.substring(0, 80)
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-
-    // Short summary: meta description or first paragraph
-    const shortSummary = (metaDesc && metaDesc.length > 40)
-      ? cleanSummary(metaDesc, 200)
-      : (uniqueParagraphs[0] ? cleanSummary(uniqueParagraphs[0], 200) : null)
-
-    // Deep extract: multiple paragraphs for expanded view
-    const deepParagraphs = uniqueParagraphs.slice(0, 4).map(p => cleanSummary(p, 300))
-
-    return {
-      summary: shortSummary,
-      deepExtract: deepParagraphs.length > 0 ? deepParagraphs : null,
-    }
+    const html = await fetchWithProxy(url)
+    if (!html) return null
+    return extractFromHtml(html)
   } catch {
     return null
   }
