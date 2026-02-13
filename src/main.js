@@ -99,7 +99,7 @@ async function loadNews() {
         ${item.topics.length > 0 ? `<div class="topic-tags">${item.topics.map(t => `<span class="topic-tag" data-topic="${t}">${t}</span>`).join('')}</div>` : ''}
         ${item.sourceCount > 1 ? `<span class="source-count">${item.sourceCount} sources</span>` : ''}
       </div>
-      <p class="quick-take" data-index="${index}">${item.summary || '<span class="summary-shimmer">Fetching summary...</span>'}</p>
+      ${item.summary ? `<p class="quick-take" data-index="${index}">${item.summary}</p>` : ''}
       ${item.relatedSources.length > 0 ? `
         <div class="related-sources">
           ${item.relatedSources.map(s => `<span class="source-tag">${s}</span>`).join('')}
@@ -142,16 +142,13 @@ async function loadNews() {
   // Add event listeners AFTER appending to DOM
   setupInteractions()
 
-  // Fetch real article content in background
+  // Fetch deeper article content in background
   enrichWithSummaries(news).then(enriched => {
     enriched.forEach((item, index) => {
-      // Populate quick-take summary
+      // Upgrade quick-take if we got a better summary from the article
       const el = document.querySelector(`.quick-take[data-index="${index}"]`)
-      if (el && item.summary) {
+      if (el && item.summary && item.summary !== news[index].snippet) {
         el.textContent = item.summary
-      } else if (el) {
-        el.textContent = ''
-        el.style.display = 'none'
       }
 
       // Populate deep extract in expand content
@@ -161,10 +158,10 @@ async function loadNews() {
           .map(p => `<p class="deep-extract-paragraph">${p}</p>`)
           .join('')
       } else if (deepEl) {
-        // Build useful fallback from what we have
+        // Fallback: show the snippet + related sources
         const parts = []
-        if (item.summary) {
-          parts.push(`<p class="deep-extract-paragraph">${item.summary}</p>`)
+        if (item.snippet) {
+          parts.push(`<p class="deep-extract-paragraph">${item.snippet}</p>`)
         }
         if (item.relatedSources && item.relatedSources.length > 0) {
           parts.push(`<p class="deep-extract-paragraph fallback">Also covered by ${item.relatedSources.join(', ')}.</p>`)

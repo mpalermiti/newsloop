@@ -1,6 +1,6 @@
 const CORS_PROXIES = [
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
 ]
 const CORS = 'https://corsproxy.io/?'
 const stopWords = new Set(['the','a','an','is','are','was','were','in','on','at','to','for','of','and','or','with','that','this','from','by','as','its','it','has','have','had','be','been','but','not','will','can','may','new','how','why','what','who','says','said','more','about','into','over','after','some','just','than','also','would','could','should','their','they','them','been','being','other','which','when','where','were','there','these','those'])
@@ -42,12 +42,6 @@ function getUrgencyLabel(pubDate) {
 function extractDomain(url) {
   try { return new URL(url).hostname.replace('www.', '') }
   catch { return '' }
-}
-
-function stripHtml(html) {
-  const tmp = document.createElement('div')
-  tmp.innerHTML = html
-  return tmp.textContent || tmp.innerText || ''
 }
 
 // Try fetching a URL through multiple CORS proxies
@@ -135,15 +129,38 @@ function cleanSummary(text, maxLen) {
   return truncated + '...'
 }
 
-// Parse Techmeme description for related sources
-function parseRelatedSources(html) {
+// Parse Techmeme description HTML for article URL, summary snippet, and related sources
+function parseDescription(html) {
   const tmp = document.createElement('div')
   tmp.innerHTML = html
-  const links = Array.from(tmp.querySelectorAll('a'))
+
+  // Get the real article URL (first link that's not techmeme.com)
+  const allLinks = Array.from(tmp.querySelectorAll('a[href]'))
+  const articleLink = allLinks.find(a => {
+    const href = a.getAttribute('href') || ''
+    return href.startsWith('http') && !href.includes('techmeme.com')
+  })
+  const articleUrl = articleLink?.getAttribute('href') || ''
+
+  // Extract summary: text after the em dash (—/&mdash;)
+  const fullText = tmp.textContent || ''
+  const dashIndex = fullText.indexOf('—')
+  let snippet = ''
+  if (dashIndex !== -1) {
+    snippet = fullText.substring(dashIndex + 1).trim()
+    // There may be multiple em-dash separated parts, join them
+    snippet = snippet.replace(/\s+/g, ' ').trim()
+    // Remove trailing ellipsis artifacts
+    snippet = snippet.replace(/\s*…\s*$/, '...')
+  }
+
+  // Related sources: source names from links after the first article link
+  const sourceNames = allLinks
     .map(a => a.textContent.trim())
     .filter(t => t.length > 2 && t.length < 60)
     .slice(1, 5)
-  return links
+
+  return { articleUrl, snippet, sourceNames }
 }
 
 function formatDate(dateStr) {
@@ -223,10 +240,9 @@ export async function getTechmemeNews() {
 
     return items.map((item, index) => {
       const title = item.querySelector('title')?.textContent || ''
-      const link = item.querySelector('link')?.textContent || ''
       const rawDescription = item.querySelector('description')?.textContent || ''
-      const description = stripHtml(rawDescription)
-      const relatedSources = parseRelatedSources(rawDescription)
+      const { articleUrl, snippet, sourceNames } = parseDescription(rawDescription)
+      const link = articleUrl || item.querySelector('link')?.textContent || ''
       const pubDate = item.querySelector('pubDate')?.textContent || ''
       const domain = extractDomain(link)
 
@@ -260,10 +276,11 @@ export async function getTechmemeNews() {
       return {
         title,
         link,
-        description,
-        summary: null,
-        relatedSources,
-        sourceCount: Math.max(1, relatedSources.length + 1),
+        snippet,
+        summary: snippet || null,
+        deepExtract: null,
+        relatedSources: sourceNames,
+        sourceCount: Math.max(1, sourceNames.length + 1),
         domain,
         pubDate: pubDate ? formatDate(pubDate) : '',
         rawPubDate: pubDate,
@@ -279,22 +296,7 @@ export async function getTechmemeNews() {
   }
 }
 
-// Extract a usable fallback from Techmeme's description (strip repeated headlines, source names)
-function extractFallbackSummary(description, title) {
-  if (!description) return null
-  // Remove anything that's just the title repeated
-  let text = description.replace(title, '').trim()
-  // Remove common Techmeme patterns like "Also:" and source attributions
-  text = text.replace(/^(also|see also|related|more):?\s*/i, '').trim()
-  // Remove leading punctuation/whitespace
-  text = text.replace(/^[—\-–:.,\s]+/, '').trim()
-  if (text.length > 50) {
-    return cleanSummary(text, 200)
-  }
-  return null
-}
-
-// Enrich stories with article content (called after initial render)
+// Enrich stories with deeper article content (called after initial render)
 export async function enrichWithSummaries(news) {
   // Fetch 6 at a time to avoid overwhelming the CORS proxy
   const batchSize = 6
@@ -310,9 +312,13 @@ export async function enrichWithSummaries(news) {
     })
   }
 
-  return news.map((item, i) => ({
-    ...item,
-    summary: contents[i]?.summary || extractFallbackSummary(item.description, item.title),
-    deepExtract: contents[i]?.deepExtract || null,
-  }))
+  return news.map((item, i) => {
+    const fetched = contents[i]
+    return {
+      ...item,
+      // Keep RSS snippet as summary, upgrade if we got a better one from the article
+      summary: fetched?.summary || item.snippet || null,
+      deepExtract: fetched?.deepExtract || null,
+    }
+  })
 }
