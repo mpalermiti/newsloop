@@ -339,6 +339,8 @@ button {
   color: var(--text-tertiary);
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ——— Card Content ——— */
@@ -404,6 +406,7 @@ button {
   font-weight: 500;
   color: var(--text-secondary);
   transition: all 0.2s;
+  outline: none;
 }
 
 .expand-btn:hover {

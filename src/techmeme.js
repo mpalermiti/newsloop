@@ -239,7 +239,9 @@ export async function getTechmemeNews() {
     const items = Array.from(techmemeXml.querySelectorAll('item')).slice(0, 20)
 
     return items.map((item, index) => {
-      const title = item.querySelector('title')?.textContent || ''
+      const rawTitle = item.querySelector('title')?.textContent || ''
+      // Strip trailing source attribution like "(The Information)" or "(Joe Smith/TechCrunch)"
+      const title = rawTitle.replace(/\s*\([^)]+\)\s*$/, '').trim()
       const rawDescription = item.querySelector('description')?.textContent || ''
       const { articleUrl, snippet, sourceNames } = parseDescription(rawDescription)
       const link = articleUrl || item.querySelector('link')?.textContent || ''
