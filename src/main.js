@@ -5,6 +5,32 @@ const app = document.querySelector('#app')
 let activeFilters = new Set()
 let currentNews = []
 
+// ——— Theme ———
+
+const THEME_KEY = 'newsloop_theme'
+const DEFAULT_THEME = 'warm-ember'
+
+function getTheme() {
+  return localStorage.getItem(THEME_KEY) || DEFAULT_THEME
+}
+
+function setTheme(theme) {
+  const scrollY = window.scrollY
+  const docHeight = document.documentElement.scrollHeight
+  const scrollRatio = docHeight > window.innerHeight ? scrollY / (docHeight - window.innerHeight) : 0
+  document.documentElement.setAttribute('data-theme', theme)
+  localStorage.setItem(THEME_KEY, theme)
+  document.querySelectorAll('.theme-dot').forEach(s => {
+    s.classList.toggle('active', s.dataset.theme === theme)
+  })
+  // Restore relative scroll position after font-driven reflow
+  const newDocHeight = document.documentElement.scrollHeight
+  window.scrollTo(0, scrollRatio * (newDocHeight - window.innerHeight))
+}
+
+// Apply theme immediately (before render)
+document.documentElement.setAttribute('data-theme', getTheme())
+
 // ——— Read Memory (localStorage) ———
 
 const READ_KEY = 'technews_read'
@@ -77,6 +103,14 @@ app.innerHTML = `
           <div class="skeleton skeleton-text short"></div>
         </div>
       `).join('')}
+    </div>
+    <div class="theme-selector">
+      <button class="theme-dot${getTheme() === 'warm-ember' ? ' active' : ''}" data-theme="warm-ember" style="--dot:#f0a060"></button>
+      <button class="theme-dot${getTheme() === 'deep-indigo' ? ' active' : ''}" data-theme="deep-indigo" style="--dot:#8b96ff"></button>
+      <button class="theme-dot${getTheme() === 'midnight-slate' ? ' active' : ''}" data-theme="midnight-slate" style="--dot:#5b9fff"></button>
+      <button class="theme-dot${getTheme() === 'matrix' ? ' active' : ''}" data-theme="matrix" style="--dot:#00ff78"></button>
+      <button class="theme-dot${getTheme() === 'graphite' ? ' active' : ''}" data-theme="graphite" style="--dot:#888"></button>
+      <button class="theme-dot${getTheme() === 'cosmic' ? ' active' : ''}" data-theme="cosmic" style="--dot:#c78dff"></button>
     </div>
   </div>
   <div class="briefing-overlay" id="briefing-overlay" style="display:none">
@@ -590,7 +624,12 @@ async function loadNews() {
   const existingGrid = container.querySelector('.news-grid')
   if (existingGrid) existingGrid.remove()
 
-  container.appendChild(newsGrid)
+  const themeSelector = container.querySelector('.theme-selector')
+  if (themeSelector) {
+    container.insertBefore(newsGrid, themeSelector)
+  } else {
+    container.appendChild(newsGrid)
+  }
 
   // Update timestamp
   const timestamp = document.getElementById('last-updated')
@@ -670,6 +709,9 @@ function setupInteractions() {
 
 document.getElementById('page-title').addEventListener('click', () => location.reload())
 document.getElementById('header-clear-btn').addEventListener('click', clearFilter)
+document.querySelectorAll('.theme-dot').forEach(dot => {
+  dot.addEventListener('click', () => setTheme(dot.dataset.theme))
+})
 
 // ——— Init ———
 
