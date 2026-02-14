@@ -591,6 +591,56 @@ function updateTopicPillStates() {
   }
 }
 
+// ——— Deep Dive Extras ———
+
+// Normalize a source name or domain for comparison: strip spaces, dots, "the", "www"
+function normSource(str) {
+  return str.toLowerCase().replace(/^(the |www\.)/g, '').replace(/[\s.\-]+/g, '').replace(/\.com$|\.org$|\.net$|\.io$|\.co$/g, '')
+}
+
+function sourcesMatch(a, b) {
+  const na = normSource(a)
+  const nb = normSource(b)
+  return na === nb || na.includes(nb) || nb.includes(na)
+}
+
+function buildExtras(item, original, hasDeepExtract) {
+  const parts = []
+
+  // HN discussion link
+  if (original.hnUrl) {
+    parts.push(`<div class="deep-extract-link"><a href="${original.hnUrl}" target="_blank" class="hn-link">Hacker News discussion \u2192</a></div>`)
+  }
+
+  // Related sources as clickable links — filter out the primary source and the alt source used for deep extract
+  if (original.relatedLinks && original.relatedLinks.length > 0) {
+    const links = []
+    original.relatedSources.forEach((name, i) => {
+      if (sourcesMatch(name, original.domain)) return
+      if (item.altSource && sourcesMatch(name, item.altSource)) return
+      const url = original.relatedLinks[i]
+      // Also filter by URL domain matching
+      if (url && sourcesMatch(url.replace(/^https?:\/\//, '').split('/')[0], original.domain)) return
+      links.push(url ? `<a href="${url}" target="_blank" class="related-link">${name}</a>` : name)
+    })
+    if (links.length > 0) {
+      parts.push(`<p class="deep-extract-label">${hasDeepExtract ? 'Also covering this story' : 'Read from another source'}</p>`)
+      parts.push(`<p class="deep-extract-paragraph">${links.join(' \u00B7 ')}</p>`)
+    }
+  }
+
+  // Techmeme discussion page — curated multi-source coverage
+  if (original.techmemeUrl) {
+    parts.push(`<div class="deep-extract-link"><a href="${original.techmemeUrl}" target="_blank" class="hn-link">View full discussion on Techmeme \u2192</a></div>`)
+  }
+
+  // Search link as fallback
+  const searchQuery = encodeURIComponent(original.title)
+  parts.push(`<div class="deep-extract-link"><a href="https://news.google.com/search?q=${searchQuery}" target="_blank" class="search-link">Search for more coverage \u2192</a></div>`)
+
+  return parts.join('')
+}
+
 // ——— Load News ———
 
 async function loadNews() {
@@ -630,14 +680,8 @@ async function loadNews() {
       <h3 class="news-title">${item.title}</h3>
       <div class="card-meta">
         ${item.topics.length > 0 ? `<div class="topic-tags">${item.topics.map(t => `<span class="topic-tag" data-topic="${t}">${t}</span>`).join('')}</div>` : ''}
-        ${item.sourceCount > 1 ? `<span class="source-count">${item.sourceCount} sources</span>` : ''}
       </div>
       ${item.summary ? `<p class="quick-take" data-index="${index}">${item.summary}</p>` : ''}
-      ${item.relatedSources.length > 0 ? `
-        <div class="related-sources">
-          ${item.relatedSources.map(s => `<span class="source-tag">${s}</span>`).join('')}
-        </div>
-      ` : ''}
       <div class="expand-content">
         <div class="deep-extract" data-deep-index="${index}">
           <div class="deep-extract-loading">
@@ -646,7 +690,7 @@ async function loadNews() {
         </div>
         <a href="${item.link}" target="_blank" class="read-link">Read full article \u2192</a>
       </div>
-      <button class="expand-btn">Deeper dive</button>
+      <button class="expand-btn">Summary</button>
     `
 
     newsGrid.appendChild(card)
@@ -695,18 +739,28 @@ async function loadNews() {
       }
 
       const deepEl = document.querySelector(`.deep-extract[data-deep-index="${index}"]`)
-      if (deepEl && item.deepExtract && item.deepExtract.length > 0) {
-        deepEl.innerHTML = item.deepExtract
-          .map(p => `<p class="deep-extract-paragraph">${p}</p>`)
-          .join('')
-      } else if (deepEl) {
-        const parts = []
-        if (item.relatedSources && item.relatedSources.length > 0) {
-          parts.push(`<p class="deep-extract-paragraph fallback">Also covered by ${item.relatedSources.join(', ')}.</p>`)
+      if (!deepEl) return
+
+      let html = ''
+      const hasDeep = item.deepExtract && item.deepExtract.length > 0
+
+      if (hasDeep) {
+        if (item.altSource && !sourcesMatch(item.altSource, news[index].domain)) {
+          html += `<p class="deep-extract-label">Via ${item.altSource}</p>`
         }
-        parts.push(`<p class="deep-extract-paragraph fallback">This article's content is behind a paywall or couldn't be loaded. Tap below to read it directly.</p>`)
-        deepEl.innerHTML = parts.join('')
+        html += item.deepExtract.map(p => `<p class="deep-extract-paragraph">${p}</p>`).join('')
       }
+
+      html += buildExtras(item, news[index], hasDeep)
+      deepEl.innerHTML = html
+
+      // Update button label based on content type
+      const card = deepEl.closest('.news-card')
+      const btn = card?.querySelector('.expand-btn')
+      if (btn && !card.classList.contains('expanded')) {
+        btn.textContent = hasDeep ? 'Summary' : 'Explore'
+      }
+      btn?.setAttribute('data-label', hasDeep ? 'Summary' : 'Explore')
     })
   })
 }
@@ -719,7 +773,7 @@ function setupInteractions() {
       e.stopPropagation()
       const card = btn.closest('.news-card')
       card.classList.toggle('expanded')
-      btn.textContent = card.classList.contains('expanded') ? 'Show less' : 'Deeper dive'
+      btn.textContent = card.classList.contains('expanded') ? 'Show less' : (btn.getAttribute('data-label') || 'Summary')
       // Mark as read when expanded
       if (card.classList.contains('expanded')) {
         markAsRead(card.dataset.link)

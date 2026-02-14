@@ -7,27 +7,54 @@ const stopWords = new Set(['the','a','an','is','are','was','were','in','on','at'
 
 // Topic detection rules
 const topicRules = [
-  { tag: 'AI', keywords: ['ai', 'artificial intelligence', 'chatgpt', 'openai', 'llm', 'generative', 'copilot', 'gemini', 'claude', 'machine learning', 'deep learning', 'neural', 'gpt'] },
-  { tag: 'Apple', keywords: ['apple', 'iphone', 'ipad', 'mac', 'ios', 'macos', 'wwdc', 'airpods', 'vision pro', 'app store'] },
+  { tag: 'AI', keywords: ['ai', 'artificial intelligence', 'chatgpt', 'openai', 'llm', 'generative', 'copilot', 'gemini', 'claude', 'machine learning', 'deep learning', 'neural', 'gpt', 'anthropic', 'midjourney', 'stable diffusion', 'perplexity'] },
+  { tag: 'Apple', keywords: ['apple', 'iphone', 'ipad', 'mac', 'ios', 'macos', 'wwdc', 'airpods', 'vision pro', 'app store', 'tim cook', 'siri'] },
   { tag: 'Google', keywords: ['google', 'alphabet', 'android', 'chrome', 'youtube', 'pixel', 'waymo', 'deepmind'] },
-  { tag: 'Microsoft', keywords: ['microsoft', 'windows', 'azure', 'xbox', 'linkedin', 'bing', 'teams'] },
+  { tag: 'Microsoft', keywords: ['microsoft', 'windows', 'azure', 'xbox', 'linkedin', 'bing', 'teams', 'satya nadella'] },
   { tag: 'Meta', keywords: ['meta', 'facebook', 'instagram', 'whatsapp', 'threads', 'zuckerberg', 'quest'] },
   { tag: 'Amazon', keywords: ['amazon', 'aws', 'alexa', 'prime', 'bezos'] },
-  { tag: 'Crypto', keywords: ['crypto', 'bitcoin', 'ethereum', 'blockchain', 'nft', 'web3', 'defi'] },
-  { tag: 'Funding', keywords: ['raises', 'funding', 'valuation', 'series a', 'series b', 'series c', 'ipo', 'venture', 'investors', 'billion-dollar'] },
-  { tag: 'Security', keywords: ['hack', 'breach', 'vulnerability', 'cybersecurity', 'ransomware', 'malware', 'privacy'] },
+  { tag: 'Crypto', keywords: ['crypto', 'bitcoin', 'ethereum', 'blockchain', 'nft', 'web3', 'defi', 'coinbase', 'binance'] },
+  { tag: 'Funding', keywords: ['raises', 'funding', 'valuation', 'series a', 'series b', 'series c', 'ipo', 'venture', 'investors', 'billion-dollar', 'acquisition', 'acquires', 'acquired', 'merger'] },
+  { tag: 'Security', keywords: ['hack', 'breach', 'vulnerability', 'cybersecurity', 'ransomware', 'malware', 'privacy', 'surveillance', 'exploit', 'data leak'] },
   { tag: 'Startups', keywords: ['startup', 'launches', 'founded', 'y combinator', 'techstars'] },
-  { tag: 'EVs', keywords: ['tesla', 'ev ', 'electric vehicle', 'rivian', 'lucid', 'charging'] },
-  { tag: 'Social', keywords: ['twitter', 'tiktok', 'snapchat', 'social media', 'x.com'] },
-  { tag: 'Space', keywords: ['spacex', 'nasa', 'rocket', 'satellite', 'orbit', 'starship', 'launch'] },
+  { tag: 'EVs', keywords: ['tesla', 'ev ', 'electric vehicle', 'rivian', 'lucid', 'charging', 'elon musk'] },
+  { tag: 'Social', keywords: ['twitter', 'tiktok', 'snapchat', 'social media', 'x.com', 'bluesky', 'mastodon'] },
+  { tag: 'Space', keywords: ['spacex', 'nasa', 'rocket', 'satellite', 'orbit', 'starship', 'launch', 'mars', 'moon'] },
+  { tag: 'Policy', keywords: ['regulation', 'antitrust', 'lawsuit', 'legislation', 'congress', 'fcc', 'ftc', 'eu ', 'european commission', 'ban', 'fine', 'ruling', 'court', 'senate', 'doj', 'subpoena', 'dhs', 'executive order'] },
+  { tag: 'Chips', keywords: ['chip', 'semiconductor', 'nvidia', 'amd', 'intel', 'tsmc', 'qualcomm', 'arm', 'gpu'] },
+  { tag: 'Gaming', keywords: ['gaming', 'game', 'playstation', 'nintendo', 'steam', 'epic games', 'unity', 'unreal'] },
+  { tag: 'Cloud', keywords: ['cloud', 'saas', 'infrastructure', 'kubernetes', 'serverless', 'databricks', 'snowflake'] },
+  { tag: 'Health', keywords: ['health', 'biotech', 'medical', 'fda', 'drug', 'clinical', 'genomic', 'crispr', 'pharma'] },
+  { tag: 'Telecom', keywords: ['5g', '6g', 'telecom', 'broadband', 'spectrum', 'carrier', 'verizon', 'at&t', 't-mobile'] },
+  { tag: 'Robotics', keywords: ['robot', 'drone', 'autonomous', 'self-driving', 'humanoid'] },
 ]
+
+// Fallback: extract the most distinctive capitalized word/phrase from the title
+function fallbackTopic(title) {
+  // Find capitalized multi-word proper nouns or single capitalized words
+  const words = title.split(/\s+/)
+  const candidates = []
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i].replace(/[^a-zA-Z']/g, '')
+    if (w.length < 3) continue
+    // Skip common title-case words
+    if (stopWords.has(w.toLowerCase())) continue
+    if (/^[A-Z]/.test(w) && i > 0) {
+      candidates.push(w)
+    }
+  }
+  return candidates.length > 0 ? candidates[0] : 'Tech'
+}
 
 function detectTopics(title) {
   const lower = title.toLowerCase()
-  return topicRules
+  const matched = topicRules
     .filter(rule => rule.keywords.some(kw => lower.includes(kw)))
     .map(rule => rule.tag)
     .slice(0, 2)
+  if (matched.length > 0) return matched
+  // Guarantee at least one topic
+  return [fallbackTopic(title)]
 }
 
 function getUrgencyLabel(pubDate) {
@@ -154,13 +181,19 @@ function parseDescription(html) {
     snippet = snippet.replace(/\s*…\s*$/, '...')
   }
 
-  // Related sources: source names from links after the first article link
-  const sourceNames = allLinks
-    .map(a => a.textContent.trim())
-    .filter(t => t.length > 2 && t.length < 60)
-    .slice(1, 5)
+  // Related sources: names + URLs from links after the first article link
+  const sourceNames = []
+  const sourceLinks = []
+  allLinks.slice(1).forEach(a => {
+    const name = a.textContent.trim()
+    const href = a.getAttribute('href') || ''
+    if (name.length > 2 && name.length < 60 && href.startsWith('http') && !href.includes('techmeme.com')) {
+      sourceNames.push(name)
+      sourceLinks.push(href)
+    }
+  })
 
-  return { articleUrl, snippet, sourceNames }
+  return { articleUrl, snippet, sourceNames: sourceNames.slice(0, 5), sourceLinks: sourceLinks.slice(0, 5) }
 }
 
 function formatDate(dateStr) {
@@ -201,6 +234,7 @@ async function fetchHN() {
       title: s.title || '',
       domain: extractDomain(s.url),
       score: s.score || 0,
+      id: s.id,
     }))
   } catch {
     return []
@@ -243,8 +277,9 @@ export async function getTechmemeNews() {
       // Strip trailing source attribution like "(The Information)" or "(Joe Smith/TechCrunch)"
       const title = rawTitle.replace(/\s*\([^)]+\)\s*$/, '').trim()
       const rawDescription = item.querySelector('description')?.textContent || ''
-      const { articleUrl, snippet, sourceNames } = parseDescription(rawDescription)
-      const link = articleUrl || item.querySelector('link')?.textContent || ''
+      const { articleUrl, snippet, sourceNames, sourceLinks } = parseDescription(rawDescription)
+      const techmemeUrl = item.querySelector('link')?.textContent || ''
+      const link = articleUrl || techmemeUrl
       const pubDate = item.querySelector('pubDate')?.textContent || ''
       const domain = extractDomain(link)
 
@@ -282,6 +317,7 @@ export async function getTechmemeNews() {
         summary: snippet || null,
         deepExtract: null,
         relatedSources: sourceNames,
+        relatedLinks: sourceLinks,
         sourceCount: Math.max(1, sourceNames.length + 1),
         domain,
         pubDate: pubDate ? formatDate(pubDate) : '',
@@ -290,12 +326,36 @@ export async function getTechmemeNews() {
         trendScore,
         topics: detectTopics(title),
         urgency: getUrgencyLabel(pubDate),
+        hnUrl: hnMatch ? `https://news.ycombinator.com/item?id=${hnMatch.id}` : null,
+        techmemeUrl: techmemeUrl.includes('techmeme.com') ? techmemeUrl : null,
       }
     })
   } catch (error) {
     console.error('Error fetching news:', error)
     return []
   }
+}
+
+// Try fetching article content, falling back to related source URLs
+async function fetchWithFallbacks(item) {
+  // Try the primary article first
+  const primary = await fetchArticleContent(item.link)
+  if (primary?.deepExtract) {
+    return { ...primary, altSource: null }
+  }
+
+  // Primary failed — try related source URLs
+  if (item.relatedLinks && item.relatedLinks.length > 0) {
+    for (let i = 0; i < Math.min(item.relatedLinks.length, 3); i++) {
+      const alt = await fetchArticleContent(item.relatedLinks[i])
+      if (alt?.deepExtract) {
+        return { ...alt, altSource: item.relatedSources[i] || extractDomain(item.relatedLinks[i]) }
+      }
+    }
+  }
+
+  // Nothing worked
+  return { summary: primary?.summary || null, deepExtract: null, altSource: null }
 }
 
 // Enrich stories with deeper article content (called after initial render)
@@ -307,7 +367,7 @@ export async function enrichWithSummaries(news) {
   for (let i = 0; i < news.length; i += batchSize) {
     const batch = news.slice(i, i + batchSize)
     const results = await Promise.allSettled(
-      batch.map(item => fetchArticleContent(item.link))
+      batch.map(item => fetchWithFallbacks(item))
     )
     results.forEach((result, j) => {
       contents[i + j] = result.status === 'fulfilled' ? result.value : null
@@ -318,9 +378,9 @@ export async function enrichWithSummaries(news) {
     const fetched = contents[i]
     return {
       ...item,
-      // Keep RSS snippet as summary, upgrade if we got a better one from the article
       summary: fetched?.summary || item.snippet || null,
       deepExtract: fetched?.deepExtract || null,
+      altSource: fetched?.altSource || null,
     }
   })
 }

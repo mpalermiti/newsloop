@@ -1038,7 +1038,12 @@ button {
 
 .news-card.trending:hover {
   border-color: var(--trending-hover-border);
-  box-shadow: var(--trending-hover-shadow);
+  box-shadow: var(--trending-hover-shadow), 0 0 25px var(--glow-strong), 0 0 50px var(--glow), 0 0 80px var(--glow);
+}
+
+.news-card.trending.expanded {
+  border-color: var(--trending-hover-border);
+  box-shadow: 0 0 20px var(--glow-strong), 0 0 50px var(--glow-strong), 0 0 90px var(--glow);
 }
 
 /* ——— Card Title ——— */
@@ -1195,15 +1200,60 @@ button {
   margin-bottom: 0;
 }
 
-.deep-extract-paragraph.fallback {
+.deep-extract-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-tertiary);
-  font-style: italic;
-  border-left-color: var(--glass-border);
+  margin: 0 0 0.375rem 0;
+}
+
+.deep-extract-label + .deep-extract-label {
+  margin-top: 1rem;
 }
 
 .deep-extract-loading {
   padding-left: 0.875rem;
   border-left: 2px solid var(--glass-border);
+}
+
+.deep-extract-link {
+  margin: 0.75rem 0;
+}
+
+.hn-link {
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.hn-link:hover {
+  color: var(--accent-hover);
+}
+
+.related-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.related-link:hover {
+  color: var(--accent);
+}
+
+.search-link {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.search-link:hover {
+  color: var(--accent);
 }
 
 /* ——— Read Link ——— */
