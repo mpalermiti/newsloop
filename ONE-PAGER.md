@@ -52,6 +52,9 @@ Stories are marked as read when expanded, briefed, or clicked through. Read stat
 ### Responsive
 Full mobile support — single-column grid, reduced topic count, touch-friendly 44px tap targets, and optimized layouts for small screens.
 
+### Accessibility
+Skip link, ARIA dialog roles with focus trapping on modals, keyboard-navigable topic filters and briefing (arrows, space to pause, escape to close), `focus-visible` outlines on all interactive elements, semantic HTML (`<main>`, `<time>`, `role="feed"`/`role="article"`), screen reader announcements for loading states and filter changes, improved color contrast across all themes, and `prefers-reduced-motion` support.
+
 ---
 
 ## Tech Stack
