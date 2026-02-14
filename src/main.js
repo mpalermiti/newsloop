@@ -82,23 +82,11 @@ function markAsRead(link) {
   // Update the card visually
   const card = document.querySelector(`.news-card[data-link="${CSS.escape(link)}"]`)
   if (card) card.classList.add('is-read')
-  updateNewCount()
+
 }
 
 function isRead(link) {
   return getReadSet().has(link)
-}
-
-function updateNewCount() {
-  const badge = document.getElementById('new-count')
-  if (!badge) return
-  const unread = document.querySelectorAll('.news-card:not(.skeleton-card):not(.is-read)').length
-  if (unread > 0) {
-    badge.textContent = `${unread} new`
-    badge.style.display = ''
-  } else {
-    badge.style.display = 'none'
-  }
 }
 
 // ——— Initial Layout ———
@@ -115,7 +103,6 @@ app.innerHTML = `
         </div>
         <span class="logo-text"><span class="glo">Glo</span><span class="signal">Signal</span></span>
       </div>
-      <span class="new-count-badge" id="new-count" style="display:none"></span>
       <div class="header-divider"></div>
       <div class="header-topics" id="header-topics"></div>
       <button class="header-clear-btn" id="header-clear-btn" style="display:none">\u2715 Clear</button>
@@ -747,7 +734,7 @@ async function loadNews() {
   if (activeFilters.size > 0) applyFilters()
 
   // Update new count badge
-  updateNewCount()
+
 
   // Update News Pulse
   updatePulse(news)
