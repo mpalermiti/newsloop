@@ -62,6 +62,33 @@ function updateThemeSelector(theme) {
 // Apply theme immediately (before render)
 document.documentElement.setAttribute('data-theme', getTheme())
 
+// ——— Focus Management ———
+
+let previousFocus = null
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+function trapFocus(container) {
+  container.addEventListener('keydown', container._trapHandler = (e) => {
+    if (e.key !== 'Tab') return
+    const focusable = container.querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])')
+    if (focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus() }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+  })
+}
+
+function releaseFocus(container) {
+  if (container._trapHandler) {
+    container.removeEventListener('keydown', container._trapHandler)
+    delete container._trapHandler
+  }
+}
+
 // ——— Read Memory (localStorage) ———
 
 const READ_KEY = 'technews_read'
@@ -139,27 +166,27 @@ app.innerHTML = `
       </div>
     </div>
   </div>
-  <div class="briefing-overlay" id="briefing-overlay" style="display:none">
+  <div class="briefing-overlay" id="briefing-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Morning briefing">
     <div class="briefing-container">
       <div class="briefing-header">
         <span class="briefing-header-title">Your morning briefing</span>
-        <button class="briefing-close-btn" id="briefing-close-btn">\u2715</button>
+        <button class="briefing-close-btn" id="briefing-close-btn" aria-label="Close briefing">\u2715</button>
       </div>
       <div class="briefing-viewport">
         <div class="briefing-cards" id="briefing-track"></div>
       </div>
       <div class="briefing-timer" id="briefing-timer"><div class="briefing-timer-fill" id="briefing-timer-fill"></div></div>
       <div class="briefing-nav">
-        <button class="briefing-btn" id="briefing-prev">\u2039</button>
+        <button class="briefing-btn" id="briefing-prev" aria-label="Previous story">\u2039</button>
         <div class="briefing-dots" id="briefing-dots"></div>
-        <button class="briefing-btn" id="briefing-next">\u203A</button>
+        <button class="briefing-btn" id="briefing-next" aria-label="Next story">\u203A</button>
       </div>
     </div>
   </div>
-  <div class="cmd-palette-overlay" id="cmd-overlay" style="display:none">
+  <div class="cmd-palette-overlay" id="cmd-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Command palette">
     <div class="cmd-palette" id="cmd-palette">
-      <input type="text" class="cmd-input" id="cmd-input" placeholder="Search stories, filter by topic..." autocomplete="off" />
-      <div class="cmd-results" id="cmd-results"></div>
+      <input type="text" class="cmd-input" id="cmd-input" placeholder="Search stories, filter by topic..." autocomplete="off" aria-label="Search stories and topics" role="combobox" aria-expanded="true" aria-controls="cmd-results" />
+      <div class="cmd-results" id="cmd-results" role="listbox" aria-label="Search results"></div>
       <div class="cmd-footer">
         <span class="cmd-hint">\u2191\u2193 navigate</span>
         <span class="cmd-hint">\u21B5 select</span>
@@ -167,6 +194,7 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+  <div class="sr-only" aria-live="polite" id="status-announcer"></div>
 `
 
 // ——— News Pulse ———
@@ -207,7 +235,7 @@ function updatePulse(news) {
   if (topicsEl) {
     topicsEl.innerHTML = sortedTopics.map(([topic, count]) => {
       const isHot = count === maxCount && count >= 3
-      return `<span class="header-topic-pill${isHot ? ' hot' : ''}" data-topic="${topic}">${topic}${isHot ? ' \u2014 surging' : ''}</span>`
+      return `<button type="button" class="header-topic-pill${isHot ? ' hot' : ''}" data-topic="${topic}">${topic}${isHot ? ' \u2014 surging' : ''}</button>`
     }).join('')
 
     // Attach filter click handlers to topic pills
@@ -236,6 +264,7 @@ const BRIEFING_INTERVAL = 5000
 
 function openBriefing() {
   if (currentNews.length === 0) return
+  previousFocus = document.activeElement
   const overlay = document.getElementById('briefing-overlay')
   overlay.style.display = ''
 
@@ -267,11 +296,19 @@ function openBriefing() {
 
   // Mark first story as read
   markAsRead(briefingStories[0].link)
+
+  // Focus management
+  const container = overlay.querySelector('.briefing-container')
+  trapFocus(container)
+  requestAnimationFrame(() => document.getElementById('briefing-close-btn').focus())
 }
 
 function closeBriefing() {
-  document.getElementById('briefing-overlay').style.display = 'none'
+  const overlay = document.getElementById('briefing-overlay')
+  releaseFocus(overlay.querySelector('.briefing-container'))
+  overlay.style.display = 'none'
   stopBriefingTimer()
+  if (previousFocus) { previousFocus.focus(); previousFocus = null }
 }
 
 function goToBriefing(i) {
@@ -290,6 +327,7 @@ function goToBriefing(i) {
 
 function startBriefingTimer() {
   stopBriefingTimer()
+  if (prefersReducedMotion.matches) return
   briefingTimerStart = Date.now()
   const fill = document.getElementById('briefing-timer-fill')
 
@@ -344,17 +382,21 @@ const cmdResults = document.getElementById('cmd-results')
 let cmdSelectedIndex = 0
 
 function openPalette() {
+  previousFocus = document.activeElement
   cmdOverlay.style.display = ''
   cmdInput.value = ''
   cmdSelectedIndex = 0
   renderPaletteResults('')
+  trapFocus(cmdPalette)
   // Focus after display transition
   requestAnimationFrame(() => cmdInput.focus())
 }
 
 function closePalette() {
+  releaseFocus(cmdPalette)
   cmdOverlay.style.display = 'none'
   cmdInput.blur()
+  if (previousFocus) { previousFocus.focus(); previousFocus = null }
 }
 
 function getPaletteItems(query) {
@@ -426,7 +468,7 @@ function renderPaletteResults(query) {
     const icon = item.type === 'topic' ? '\u22B9' : item.type === 'action' ? '\u21BA' : '\u2192'
     const readClass = item.read ? ' cmd-item-read' : ''
     const selectedClass = i === cmdSelectedIndex ? ' cmd-item-selected' : ''
-    return `<div class="cmd-item${selectedClass}${readClass}" data-index="${i}">
+    return `<div class="cmd-item${selectedClass}${readClass}" data-index="${i}" role="option" aria-selected="${i === cmdSelectedIndex}">
       <span class="cmd-item-icon">${icon}</span>
       <div class="cmd-item-text">
         <span class="cmd-item-label">${item.label}</span>
@@ -492,6 +534,10 @@ document.addEventListener('keydown', (e) => {
       goToBriefing((briefingIdx + 1) % briefingStories.length)
     } else if (e.key === 'ArrowLeft') {
       goToBriefing((briefingIdx + briefingStories.length - 1) % briefingStories.length)
+    } else if (e.key === ' ') {
+      e.preventDefault()
+      if (briefingAnimFrame) stopBriefingTimer()
+      else startBriefingTimer()
     }
   }
 })
@@ -514,6 +560,13 @@ function clearFilter() {
 
 function applyFilters() {
   updateTopicPillStates()
+
+  // Update page title
+  if (activeFilters.size > 0) {
+    document.title = `${[...activeFilters].join(', ')} \u2014 GloSignal`
+  } else {
+    document.title = 'GloSignal // tech news'
+  }
 
   document.querySelectorAll('.news-card:not(.skeleton-card)').forEach(card => {
     if (activeFilters.size === 0) {
@@ -604,6 +657,8 @@ const enrichedCache = new Map()
 
 async function loadNews() {
   const container = document.querySelector('.news-container')
+  const announcer = document.getElementById('status-announcer')
+  if (announcer) announcer.textContent = 'Loading news stories...'
   const news = await getTechmemeNews()
 
   if (news.length === 0) {
@@ -627,11 +682,14 @@ async function loadNews() {
 
   const newsGrid = document.createElement('div')
   newsGrid.className = 'news-grid'
+  newsGrid.setAttribute('role', 'feed')
+  newsGrid.setAttribute('aria-label', 'Tech news stories')
 
   sorted.forEach((item, sortedIndex) => {
     const index = item.originalIndex
     const card = document.createElement('div')
     card.className = 'news-card card-type-1'
+    card.setAttribute('role', 'article')
     if (sortedIndex === 0) card.classList.add('top-story')
     card.dataset.link = item.link
     card.dataset.topics = JSON.stringify(item.topics)
@@ -653,10 +711,10 @@ async function loadNews() {
 
     card.innerHTML = `
       <div class="news-card-header">
-        ${sortedIndex === 0 ? '<span class="top-story-label">Top story</span>' : sortedIndex < 3 ? '<span class="top-story-label">Trending</span>' : (item.trending ? '<span class="trending-badge">\uD83D\uDD25</span>' : '')}
+        ${sortedIndex === 0 ? '<span class="top-story-label">Top story</span>' : sortedIndex < 3 ? '<span class="top-story-label">Trending</span>' : (item.trending ? '<span class="trending-badge" role="img" aria-label="Trending">\uD83D\uDD25</span>' : '')}
         ${item.urgency ? `<span class="urgency-label">${item.urgency}</span>` : ''}
         <span class="news-source">${item.domain}</span>
-        <span class="news-time">${item.pubDate}</span>
+        <time class="news-time" datetime="${item.rawPubDate || ''}">${item.pubDate}</time>
       </div>
       <h3 class="news-title">${item.title}</h3>
       <div class="card-meta">
@@ -669,9 +727,9 @@ async function loadNews() {
             <span class="summary-shimmer">Loading deeper summary...</span>
           </div>
         </div>
-        <a href="${item.link}" target="_blank" class="read-link">Read full article \u2192</a>
+        <a href="${item.link}" target="_blank" class="read-link" aria-label="Read full article: ${item.title}">Read full article \u2192</a>
       </div>
-      <button class="expand-btn">Summary</button>
+      <button class="expand-btn" aria-expanded="false">Summary</button>
     `
 
     // Restore cached enrichment on refresh (avoids shimmer flash)
@@ -742,6 +800,8 @@ async function loadNews() {
   // Add event listeners AFTER appending to DOM
   setupInteractions()
 
+  if (announcer) announcer.textContent = `${sorted.length} news stories loaded`
+
   isFirstLoad = false
 
   // Fetch deeper article content in background
@@ -800,7 +860,9 @@ function setupInteractions() {
       e.stopPropagation()
       const card = btn.closest('.news-card')
       card.classList.toggle('expanded')
-      btn.textContent = card.classList.contains('expanded') ? 'Show less' : (btn.getAttribute('data-label') || 'Summary')
+      const isExpanded = card.classList.contains('expanded')
+      btn.setAttribute('aria-expanded', isExpanded)
+      btn.textContent = isExpanded ? 'Show less' : (btn.getAttribute('data-label') || 'Summary')
       // Mark as read when expanded
       if (card.classList.contains('expanded')) {
         markAsRead(card.dataset.link)
