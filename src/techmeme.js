@@ -1,3 +1,6 @@
+// AI Worker URL — set after deploying Cloudflare Worker, empty string disables AI
+const AI_WORKER_URL = 'https://glosignal-ai.michaelp-6a2.workers.dev'
+
 const CORS_PROXIES = [
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
@@ -126,9 +129,13 @@ function extractFromHtml(html) {
   // Deep extract: multiple paragraphs for expanded view
   const deepParagraphs = uniqueParagraphs.slice(0, 4).map(p => cleanSummary(p, 300))
 
+  // Raw text for AI summarization input
+  const rawText = uniqueParagraphs.slice(0, 8).join('\n\n')
+
   return {
     summary: shortSummary,
     deepExtract: deepParagraphs.length > 0 ? deepParagraphs : null,
+    rawText: rawText.length > 100 ? rawText : null,
   }
 }
 
@@ -336,6 +343,28 @@ export async function getTechmemeNews() {
   }
 }
 
+// AI-powered summarization via Cloudflare Worker
+async function aiSummarize(title, rawText) {
+  if (!AI_WORKER_URL || !rawText) return null
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    const res = await fetch(AI_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, text: rawText }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data.summary && data.deepExtract) return data
+    return null
+  } catch {
+    return null
+  }
+}
+
 // Try fetching article content, falling back to related source URLs
 async function fetchWithFallbacks(item) {
   // Try the primary article first
@@ -360,7 +389,7 @@ async function fetchWithFallbacks(item) {
 
 // Enrich stories with deeper article content (called after initial render)
 export async function enrichWithSummaries(news) {
-  // Fetch 6 at a time to avoid overwhelming the CORS proxy
+  // Phase 1: Scrape articles for raw text + fallback summaries
   const batchSize = 6
   const contents = new Array(news.length).fill(null)
 
@@ -372,6 +401,28 @@ export async function enrichWithSummaries(news) {
     results.forEach((result, j) => {
       contents[i + j] = result.status === 'fulfilled' ? result.value : null
     })
+  }
+
+  // Phase 2: AI enhancement (if worker is configured)
+  if (AI_WORKER_URL) {
+    for (let i = 0; i < news.length; i += batchSize) {
+      const aiResults = await Promise.allSettled(
+        news.slice(i, i + batchSize).map((item, j) => {
+          const rawText = contents[i + j]?.rawText
+          if (!rawText) return Promise.resolve(null)
+          return aiSummarize(item.title, rawText)
+        })
+      )
+      aiResults.forEach((result, j) => {
+        if (result.status === 'fulfilled' && result.value) {
+          contents[i + j] = {
+            ...contents[i + j],
+            summary: result.value.summary,
+            deepExtract: result.value.deepExtract,
+          }
+        }
+      })
+    }
   }
 
   return news.map((item, i) => {
