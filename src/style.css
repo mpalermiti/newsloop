@@ -1012,6 +1012,19 @@ button {
   flex-shrink: 0;
 }
 
+.top-story-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  padding: 0.125rem 0.45rem;
+  border-radius: 100px;
+  flex-shrink: 0;
+}
+
 .news-source {
   font-size: var(--text-xs);
   color: var(--text-secondary);
@@ -1168,17 +1181,19 @@ button {
   margin-top: 0.75rem;
   padding: 0.5rem 1rem;
   background: var(--glass);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--glass-border-hover);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-tertiary);
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
   transition: all 0.2s;
 }
 
 .expand-btn:hover {
-  background: var(--glass-hover);
-  color: var(--text-secondary);
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
 
 /* ——— Deep Extract ——— */

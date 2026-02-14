@@ -437,7 +437,7 @@ function getPaletteItems(query) {
       action: () => {
         closePalette()
         clearFilter()
-        const card = document.querySelectorAll('.news-card:not(.skeleton-card)')[i]
+        const card = document.querySelector(`.news-card[data-link="${CSS.escape(item.link)}"]`)
         if (card) {
           card.scrollIntoView({ behavior: 'smooth', block: 'center' })
           card.style.animation = 'none'
@@ -657,22 +657,28 @@ async function loadNews() {
 
   currentNews = news
 
+  // Sort by trendScore descending, preserving Techmeme order as tiebreaker
+  const sorted = news.map((item, i) => ({ ...item, originalIndex: i }))
+    .sort((a, b) => (b.trendScore || 0) - (a.trendScore || 0) || a.originalIndex - b.originalIndex)
+
   const newsGrid = document.createElement('div')
   newsGrid.className = 'news-grid'
 
-  news.forEach((item, index) => {
+  sorted.forEach((item, sortedIndex) => {
+    const index = item.originalIndex
     const card = document.createElement('div')
     card.className = 'news-card card-type-1'
+    if (sortedIndex === 0) card.classList.add('top-story')
     card.dataset.link = item.link
     card.dataset.topics = JSON.stringify(item.topics)
-    card.style.animationDelay = `${index * 0.05}s`
+    card.style.animationDelay = `${sortedIndex * 0.05}s`
 
     if (item.trending) card.classList.add('trending')
     if (isRead(item.link)) card.classList.add('is-read')
 
     card.innerHTML = `
       <div class="news-card-header">
-        ${item.trending ? '<span class="trending-badge">\uD83D\uDD25</span>' : ''}
+        ${sortedIndex === 0 ? '<span class="top-story-label">Top story</span>' : sortedIndex < 3 ? '<span class="top-story-label">Trending</span>' : (item.trending ? '<span class="trending-badge">\uD83D\uDD25</span>' : '')}
         ${item.urgency ? `<span class="urgency-label">${item.urgency}</span>` : ''}
         <span class="news-source">${item.domain}</span>
         <span class="news-time">${item.pubDate}</span>
