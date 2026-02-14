@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600&display=swap');
 
 :root {
   --font: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -544,20 +545,75 @@ button {
   flex-wrap: wrap;
 }
 
-.page-title {
-  font-size: var(--text-base);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  margin: 0;
+/* ——— Logo ——— */
+
+.logo-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
-  transition: color 0.2s;
   flex-shrink: 0;
 }
 
-.page-title:hover {
+.logo-inline:hover .logo-text .signal {
   color: var(--text-primary);
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.logo-icon .ring {
+  position: absolute;
+  border-style: solid;
+  border-color: var(--accent);
+  border-radius: 50%;
+}
+
+.logo-icon .ring:nth-child(1) {
+  width: 28px; height: 28px; top: 0; left: 0;
+  opacity: 0.15;
+  border-width: 2px;
+}
+
+.logo-icon .ring:nth-child(2) {
+  width: 20px; height: 20px; top: 4px; left: 4px;
+  opacity: 0.35;
+  border-width: 1.5px;
+}
+
+.logo-icon .ring:nth-child(3) {
+  width: 12px; height: 12px; top: 8px; left: 8px;
+  opacity: 0.6;
+  border-width: 1.5px;
+}
+
+.logo-icon .core {
+  position: absolute;
+  width: 5px; height: 5px;
+  top: 11.5px; left: 11.5px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--glow-strong);
+}
+
+.logo-text {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.3px;
+}
+
+.logo-text .glo {
+  color: var(--accent);
+}
+
+.logo-text .signal {
+  color: var(--text-secondary);
+  transition: color 0.2s;
 }
 
 .new-count-badge {
@@ -579,45 +635,35 @@ button {
   flex: 1;
 }
 
-/* Pulse mini (inline) */
+/* ——— Logo Pulse Animation (driven by data-activity) ——— */
 
-.pulse-mini {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
+.logo-icon .ring:nth-child(1) { --base-opacity: 0.15; }
+.logo-icon .ring:nth-child(2) { --base-opacity: 0.35; }
+.logo-icon .ring:nth-child(3) { --base-opacity: 0.6; }
+
+.logo-icon[data-activity] .ring {
+  animation: logoRingPulse var(--pulse-speed, 4s) ease-in-out infinite;
 }
 
-.pulse-mini-bars {
-  display: flex;
-  align-items: center;
-  gap: 1.5px;
-  height: 20px;
+.logo-icon[data-activity] .ring:nth-child(2) { animation-delay: 0.2s; }
+.logo-icon[data-activity] .ring:nth-child(3) { animation-delay: 0.4s; }
+
+.logo-icon[data-activity="quiet"]  { --pulse-speed: 4s;   --pulse-boost: 1.4; --core-spread: 8px; }
+.logo-icon[data-activity="steady"] { --pulse-speed: 2.5s; --pulse-boost: 1.8; --core-spread: 14px; }
+.logo-icon[data-activity="busy"]   { --pulse-speed: 1.5s; --pulse-boost: 2.2; --core-spread: 20px; }
+
+@keyframes logoRingPulse {
+  0%, 100% { opacity: var(--base-opacity); transform: scale(1); }
+  50% { opacity: calc(var(--base-opacity) * var(--pulse-boost, 1.4)); transform: scale(1.06); }
 }
 
-.pulse-bar {
-  width: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  animation: pulseWave 1.8s ease-in-out infinite;
+.logo-icon[data-activity] .core {
+  animation: coreGlow var(--pulse-speed, 4s) ease-in-out infinite;
 }
 
-@keyframes pulseWave {
-  0%, 100% { height: 4px; opacity: 0.3; }
-  50% { height: var(--h, 14px); opacity: 1; }
-}
-
-.pulse-mini-stat {
-  font-size: 0.7rem;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  min-width: 7.5ch;
-}
-
-.pulse-mini-stat strong {
-  color: var(--accent);
-  font-weight: 600;
+@keyframes coreGlow {
+  0%, 100% { box-shadow: 0 0 6px var(--glow-strong); }
+  50% { box-shadow: 0 0 var(--core-spread, 8px) var(--glow-strong), 0 0 calc(var(--core-spread, 8px) * 2) var(--glow); }
 }
 
 /* Header topic pills */
@@ -651,6 +697,12 @@ button {
   color: var(--red);
   background: var(--red-dim);
   border-color: var(--red-border);
+  animation: hotPillGlow 2s ease-in-out infinite;
+}
+
+@keyframes hotPillGlow {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 8px var(--red-dim), 0 0 16px var(--red-dim); }
 }
 
 .header-topic-pill.active {
@@ -1290,11 +1342,6 @@ button {
   color: var(--accent-hover);
 }
 
-@keyframes hotPulse {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 1; }
-}
-
 /* ——— Morning Briefing Overlay ——— */
 
 .briefing-overlay {
@@ -1616,8 +1663,7 @@ button {
     gap: 0.5rem;
   }
 
-  .header-divider,
-  .pulse-mini {
+  .header-divider {
     display: none !important;
   }
 
@@ -1666,10 +1712,5 @@ button {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .pulse-bar {
-    height: var(--h, 14px) !important;
-    opacity: 0.6 !important;
   }
 }

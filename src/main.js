@@ -7,7 +7,7 @@ let currentNews = []
 
 // ——— Theme ———
 
-const THEME_KEY = 'glowstack_theme'
+const THEME_KEY = 'glosignal_theme'
 const DEFAULT_THEME = 'warm-ember'
 
 const DARK_THEMES = [
@@ -106,14 +106,17 @@ function updateNewCount() {
 app.innerHTML = `
   <div class="news-container">
     <div class="page-header">
-      <h1 class="page-title" id="page-title">Glow Stack</h1>
+      <div class="logo-inline" id="page-title">
+        <div class="logo-icon">
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="core"></div>
+        </div>
+        <span class="logo-text"><span class="glo">Glo</span><span class="signal">Signal</span></span>
+      </div>
       <span class="new-count-badge" id="new-count" style="display:none"></span>
       <div class="header-divider"></div>
-      <div class="pulse-mini" id="pulse-mini" style="display:none">
-        <div class="pulse-mini-bars" id="pulse-bars"></div>
-        <span class="pulse-mini-stat"><strong id="pulse-num">0</strong>/hr \u00B7 <span id="pulse-label"></span></span>
-      </div>
-      <div class="header-divider" id="pulse-divider" style="display:none"></div>
       <div class="header-topics" id="header-topics"></div>
       <button class="header-clear-btn" id="header-clear-btn" style="display:none">\u2715 Clear</button>
       <div class="header-spacer"></div>
@@ -181,24 +184,7 @@ app.innerHTML = `
 
 // ——— News Pulse ———
 
-let pulseInterval = null
-
-function initPulseBars() {
-  const container = document.getElementById('pulse-bars')
-  if (!container || container.children.length > 0) return
-  for (let i = 0; i < 16; i++) {
-    const bar = document.createElement('div')
-    bar.className = 'pulse-bar'
-    const h = 4 + Math.random() * 14
-    bar.style.setProperty('--h', h + 'px')
-    bar.style.animationDelay = (i * 0.1) + 's'
-    container.appendChild(bar)
-  }
-}
-
 function updatePulse(news) {
-  initPulseBars()
-
   // Count stories in last hour
   const now = Date.now()
   const oneHourAgo = now - 60 * 60 * 1000
@@ -207,10 +193,14 @@ function updatePulse(news) {
     return new Date(item.rawPubDate).getTime() > oneHourAgo
   }).length
 
-  // Qualitative label
-  let label = 'Quiet'
-  if (recentCount >= 10) label = 'Busy'
-  else if (recentCount >= 4) label = 'Steady'
+  // Set logo activity level — drives ring pulse animation via CSS
+  const logoIcon = document.querySelector('.logo-icon')
+  if (logoIcon) {
+    let activity = 'quiet'
+    if (recentCount >= 10) activity = 'busy'
+    else if (recentCount >= 4) activity = 'steady'
+    logoIcon.dataset.activity = activity
+  }
 
   // Topic frequency
   const topicCounts = {}
@@ -224,18 +214,6 @@ function updatePulse(news) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, topicLimit)
   const maxCount = sortedTopics.length > 0 ? sortedTopics[0][1] : 0
-
-  // Update pulse stat
-  const numEl = document.getElementById('pulse-num')
-  const labelEl = document.getElementById('pulse-label')
-  if (numEl) numEl.textContent = recentCount
-  if (labelEl) labelEl.textContent = label
-
-  // Show pulse
-  const pulseEl = document.getElementById('pulse-mini')
-  const pulseDivider = document.getElementById('pulse-divider')
-  if (pulseEl) pulseEl.style.display = ''
-  if (pulseDivider) pulseDivider.style.display = ''
 
   // Update topic pills in header
   const topicsEl = document.getElementById('header-topics')
@@ -258,15 +236,6 @@ function updatePulse(news) {
       })
     })
   }
-
-  // Animate number drift
-  if (pulseInterval) clearInterval(pulseInterval)
-  let displayNum = recentCount
-  pulseInterval = setInterval(() => {
-    displayNum += Math.round((Math.random() - 0.45) * 2)
-    displayNum = Math.max(0, displayNum)
-    if (numEl) numEl.textContent = displayNum
-  }, 3000)
 }
 
 // ——— Morning Briefing ———

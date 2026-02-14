@@ -1,6 +1,6 @@
-# Glow Stack // tech news
+# GloSignal // tech news
 
-**A curated tech news reader with a signature glow.**
+**Tech news, amplified.**
 
 Live at [mpalermiti.github.io/glowstack](https://mpalermiti.github.io/glowstack/)
 
@@ -8,7 +8,7 @@ Live at [mpalermiti.github.io/glowstack](https://mpalermiti.github.io/glowstack/
 
 ## What it does
 
-Glow Stack aggregates the top tech stories from Techmeme into a fast, glass-morphism interface. Stories are ranked by trend score, enriched with AI-generated summaries, and organized by topic. Cards glow in the active theme's accent color on hover and expansion — the signature visual of the app.
+GloSignal aggregates the top tech stories from Techmeme into a fast, glass-morphism interface. Stories are ranked by trend score, enriched with AI-generated summaries, and organized by topic. Cards glow in the active theme's accent color on hover and expansion — the signature visual of the app.
 
 ---
 
