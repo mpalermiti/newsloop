@@ -2,7 +2,7 @@ import './style.css'
 import { getTechmemeNews, enrichWithSummaries } from './techmeme.js'
 
 const app = document.querySelector('#app')
-let activeFilter = null
+let activeFilters = new Set()
 let currentNews = []
 
 // ——— Read Memory (localStorage) ———
@@ -49,27 +49,22 @@ function updateNewCount() {
 app.innerHTML = `
   <div class="news-container">
     <div class="page-header">
-      <div class="page-title-row">
-        <h1 class="page-title" id="page-title">Latest tech news</h1>
-        <span class="new-count-badge" id="new-count" style="display:none"></span>
+      <h1 class="page-title" id="page-title">Latest tech news</h1>
+      <span class="new-count-badge" id="new-count" style="display:none"></span>
+      <div class="header-divider"></div>
+      <div class="pulse-mini" id="pulse-mini" style="display:none">
+        <div class="pulse-mini-bars" id="pulse-bars"></div>
+        <span class="pulse-mini-stat"><strong id="pulse-num">0</strong>/hr \u00B7 <span id="pulse-label"></span></span>
       </div>
-      <div class="header-right">
-        <button class="briefing-open-btn" id="briefing-open-btn">Briefing</button>
+      <div class="header-divider" id="pulse-divider" style="display:none"></div>
+      <div class="header-topics" id="header-topics"></div>
+      <button class="header-clear-btn" id="header-clear-btn" style="display:none">\u2715 Clear</button>
+      <div class="header-spacer"></div>
+      <div class="header-actions">
+        <button class="header-briefing-btn" id="briefing-open-btn">Briefing</button>
         <kbd class="kbd-hint" id="kbd-hint">\u2318K</kbd>
         <span class="last-updated" id="last-updated"></span>
       </div>
-    </div>
-    <div class="news-pulse" id="news-pulse" style="display:none">
-      <div class="pulse-visual" id="pulse-bars"></div>
-      <div class="pulse-info">
-        <div class="pulse-bpm"><span class="pulse-num" id="pulse-num">0</span> stories/hr</div>
-        <div class="pulse-label" id="pulse-label">Loading...</div>
-        <div class="pulse-topics" id="pulse-topics"></div>
-      </div>
-    </div>
-    <div class="active-filter" id="active-filter" style="display:none">
-      <span class="active-filter-label">Filtered by <strong id="filter-name"></strong></span>
-      <button class="clear-filter-btn" id="clear-filter">Clear filter</button>
     </div>
     <div class="news-grid">
       ${Array(6).fill('').map(() => `
@@ -121,20 +116,17 @@ let pulseInterval = null
 function initPulseBars() {
   const container = document.getElementById('pulse-bars')
   if (!container || container.children.length > 0) return
-  for (let i = 0; i < 35; i++) {
+  for (let i = 0; i < 16; i++) {
     const bar = document.createElement('div')
     bar.className = 'pulse-bar'
-    const h = 10 + Math.random() * 55
+    const h = 4 + Math.random() * 14
     bar.style.setProperty('--h', h + 'px')
-    bar.style.animationDelay = (i * 0.08) + 's'
+    bar.style.animationDelay = (i * 0.1) + 's'
     container.appendChild(bar)
   }
 }
 
 function updatePulse(news) {
-  const pulseEl = document.getElementById('news-pulse')
-  if (!pulseEl) return
-
   initPulseBars()
 
   // Count stories in last hour
@@ -146,9 +138,9 @@ function updatePulse(news) {
   }).length
 
   // Qualitative label
-  let label = 'Quiet news cycle'
-  if (recentCount >= 10) label = 'Busy day'
-  else if (recentCount >= 4) label = 'Steady flow'
+  let label = 'Quiet'
+  if (recentCount >= 10) label = 'Busy'
+  else if (recentCount >= 4) label = 'Steady'
 
   // Topic frequency
   const topicCounts = {}
@@ -159,24 +151,42 @@ function updatePulse(news) {
   })
   const sortedTopics = Object.entries(topicCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
+    .slice(0, 6)
   const maxCount = sortedTopics.length > 0 ? sortedTopics[0][1] : 0
 
-  // Update DOM
+  // Update pulse stat
   const numEl = document.getElementById('pulse-num')
   const labelEl = document.getElementById('pulse-label')
-  const topicsEl = document.getElementById('pulse-topics')
-
   if (numEl) numEl.textContent = recentCount
   if (labelEl) labelEl.textContent = label
+
+  // Show pulse
+  const pulseEl = document.getElementById('pulse-mini')
+  const pulseDivider = document.getElementById('pulse-divider')
+  if (pulseEl) pulseEl.style.display = ''
+  if (pulseDivider) pulseDivider.style.display = ''
+
+  // Update topic pills in header
+  const topicsEl = document.getElementById('header-topics')
   if (topicsEl) {
     topicsEl.innerHTML = sortedTopics.map(([topic, count]) => {
       const isHot = count === maxCount && count >= 3
-      return `<span class="pulse-topic${isHot ? ' hot' : ''}">${topic}${isHot ? ' \u2014 surging' : ''}</span>`
+      return `<span class="header-topic-pill${isHot ? ' hot' : ''}" data-topic="${topic}">${topic}${isHot ? ' \u2014 surging' : ''}</span>`
     }).join('')
-  }
 
-  pulseEl.style.display = ''
+    // Attach filter click handlers to topic pills
+    topicsEl.querySelectorAll('.header-topic-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const topic = pill.dataset.topic
+        if (activeFilters.has(topic)) {
+          activeFilters.delete(topic)
+        } else {
+          activeFilters.add(topic)
+        }
+        applyFilters()
+      })
+    })
+  }
 
   // Animate number drift
   if (pulseInterval) clearInterval(pulseInterval)
@@ -337,7 +347,7 @@ function getPaletteItems(query) {
   })
 
   // Clear filter action
-  if (activeFilter) {
+  if (activeFilters.size > 0) {
     items.unshift({
       type: 'action',
       label: 'Clear filter',
@@ -465,34 +475,49 @@ document.getElementById('kbd-hint').addEventListener('click', openPalette)
 // ——— Filter ———
 
 function applyFilter(topic) {
-  activeFilter = topic
-  const filterBar = document.getElementById('active-filter')
-  const filterName = document.getElementById('filter-name')
-  filterBar.style.display = 'flex'
-  filterName.textContent = topic
+  activeFilters.clear()
+  activeFilters.add(topic)
+  applyFilters()
+}
+
+function clearFilter() {
+  activeFilters.clear()
+  applyFilters()
+}
+
+function applyFilters() {
+  updateTopicPillStates()
 
   document.querySelectorAll('.news-card:not(.skeleton-card)').forEach(card => {
-    const cardTopics = Array.from(card.querySelectorAll('.topic-tag')).map(t => t.textContent)
-    if (cardTopics.includes(topic)) {
+    if (activeFilters.size === 0) {
       card.style.display = ''
       card.style.animation = 'none'
       card.offsetHeight
       card.style.animation = 'cardEnter 0.3s ease-out both'
     } else {
-      card.style.display = 'none'
+      const cardTopics = Array.from(card.querySelectorAll('.topic-tag')).map(t => t.textContent)
+      const matches = cardTopics.some(t => activeFilters.has(t))
+      if (matches) {
+        card.style.display = ''
+        card.style.animation = 'none'
+        card.offsetHeight
+        card.style.animation = 'cardEnter 0.3s ease-out both'
+      } else {
+        card.style.display = 'none'
+      }
     }
   })
 }
 
-function clearFilter() {
-  activeFilter = null
-  document.getElementById('active-filter').style.display = 'none'
-  document.querySelectorAll('.news-card:not(.skeleton-card)').forEach(card => {
-    card.style.display = ''
-    card.style.animation = 'none'
-    card.offsetHeight
-    card.style.animation = 'cardEnter 0.3s ease-out both'
+function updateTopicPillStates() {
+  document.querySelectorAll('.header-topic-pill').forEach(pill => {
+    pill.classList.toggle('active', activeFilters.has(pill.dataset.topic))
   })
+
+  const clearBtn = document.getElementById('header-clear-btn')
+  if (clearBtn) {
+    clearBtn.style.display = activeFilters.size > 0 ? '' : 'none'
+  }
 }
 
 // ——— Load News ———
@@ -570,11 +595,11 @@ async function loadNews() {
   // Update timestamp
   const timestamp = document.getElementById('last-updated')
   if (timestamp) {
-    timestamp.textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+    timestamp.textContent = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
   }
 
-  // Re-apply active filter if one was set
-  if (activeFilter) applyFilter(activeFilter)
+  // Re-apply active filters if any were set
+  if (activeFilters.size > 0) applyFilters()
 
   // Update new count badge
   updateNewCount()
@@ -643,8 +668,8 @@ function setupInteractions() {
 
 // ——— Event Listeners ———
 
-document.getElementById('clear-filter').addEventListener('click', clearFilter)
 document.getElementById('page-title').addEventListener('click', () => location.reload())
+document.getElementById('header-clear-btn').addEventListener('click', clearFilter)
 
 // ——— Init ———
 
